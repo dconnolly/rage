@@ -12,6 +12,9 @@ use crate::{
     primitives::{aead_encrypt, hkdf, p256::PublicKey},
 };
 
+#[cfg(feature = "yubikey")]
+pub mod yubikey;
+
 const PIV_RECIPIENT_TAG: &[u8] = b"piv ";
 const PIV_RECIPIENT_KEY_LABEL: &[u8] = b"age-encryption.org/v1/piv";
 

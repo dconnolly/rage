@@ -86,3 +86,6 @@ pub use protocol::{Decryptor, Encryptor};
 
 #[cfg(feature = "cli-common")]
 pub mod cli_common;
+
+#[cfg(feature = "yubikey")]
+pub use format::piv::yubikey;
