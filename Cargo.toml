@@ -38,6 +38,10 @@ sha2 = "0.8"
 # - scrypt from RFC 7914
 scrypt = { version = "0.2", default-features = false }
 
+# - secp256r1
+elliptic-curve = "0.2"
+ring = "0.16.9"
+
 # - CSPRNG
 rand = "0.7"
 

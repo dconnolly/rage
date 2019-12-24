@@ -61,6 +61,7 @@ dependencies = [
  "curve25519-dalek 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dialoguer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "elliptic-curve 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fuse_mt 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gumdrop 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -77,6 +78,7 @@ dependencies = [
  "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "radix64 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "rsa 0.2.0 (git+https://github.com/str4d/RSA?branch=oaep)",
  "scrypt 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secrecy 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -436,6 +438,17 @@ dependencies = [
  "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
  "redox_users 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "elliptic-curve"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "getrandom 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1657,6 +1670,7 @@ dependencies = [
 "checksum digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 "checksum dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "13aea89a5c93364a98e9b37b2fa237effbb694d5cfe01c5b70941f7eb087d5e3"
 "checksum dirs-sys 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "afa0b23de8fd801745c471deffa6e12d248f962c9fd4b4c33787b055599bde7b"
+"checksum elliptic-curve 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ed8af8090c11491f2eda061d68eb48433176f851dfa6b634f829381c659ea1ff"
 "checksum encode_unicode 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 "checksum env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "aafcde04e90a5226a6443b7aabdb016ba2f8307c847d524724bd9b346dd1a2d3"
 "checksum env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
