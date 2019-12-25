@@ -77,6 +77,7 @@ secrecy = "0.5"
 zeroize = "1"
 
 # YubiKey dependencies
+hex = { version = "0.4", optional = true }
 subtle = { version = "2.2.2", optional = true }
 yubikey-piv = { version = "0.0.3", features = ["untested"], optional = true }
 
@@ -114,7 +115,7 @@ cli-common = ["dialoguer", "dirs", "gumdrop", "log"]
 cli = ["cli-common", "chrono", "console", "env_logger", "minreq"]
 mount = ["cli-common", "env_logger", "fuse_mt", "libc", "tar", "time", "zip"]
 unstable = ["num-traits", "rsa"]
-yubikey = ["subtle", "yubikey-piv"]
+yubikey = ["hex", "subtle", "yubikey-piv"]
 
 [[bin]]
 name = "rage-mount"
