@@ -4,6 +4,8 @@ use bech32::ToBase32;
 use elliptic_curve::weierstrass::{curve::NistP256, PublicKey as EcPublicKey};
 use secrecy::{ExposeSecret, Secret, SecretString};
 use std::convert::TryInto;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime};
 use yubikey_piv::{
     certificate::{Certificate, PublicKeyInfo},
     key::{decrypt_data, AlgorithmId, SlotId},
@@ -17,6 +19,9 @@ use crate::{
     keys::{FileKey, RecipientKey, YUBIKEY_STUB_PREFIX},
     primitives::{aead_decrypt, hkdf, p256::PublicKey},
 };
+
+const ONE_SECOND: Duration = Duration::from_secs(1);
+const FIFTEEN_SECONDS: Duration = Duration::from_secs(15);
 
 /// A reference to an age key stored in a YubiKey.
 #[derive(Debug, PartialEq)]
@@ -85,7 +90,31 @@ impl Stub {
         }
 
         Some((|| {
-            let mut yubikey = YubiKey::open()?;
+            let mut yubikey = match YubiKey::open_by_serial(self.serial) {
+                Ok(yubikey) => yubikey,
+                Err(yubikey_piv::Error::NotFound) => {
+                    eprintln!("Please insert YubiKey with serial {}", self.serial);
+
+                    // Start a 15-second timer waiting for the YubiKey to be inserted
+                    let start = SystemTime::now();
+                    loop {
+                        match YubiKey::open_by_serial(self.serial) {
+                            Ok(yubikey) => break yubikey,
+                            Err(yubikey_piv::Error::NotFound) => (),
+                            Err(e) => return Err(Error::YubiKey(e)),
+                        }
+
+                        match SystemTime::now().duration_since(start) {
+                            Ok(end) if end >= FIFTEEN_SECONDS => {
+                                eprintln!("Timed out waiting for YubiKey");
+                                return Err(Error::KeyDecryptionFailed);
+                            }
+                            _ => sleep(ONE_SECOND),
+                        }
+                    }
+                }
+                Err(e) => return Err(Error::YubiKey(e)),
+            };
 
             // Read the pubkey from the YubiKey slot and check it still matches.
             let cert = Certificate::read(&mut yubikey, self.slot)?;
