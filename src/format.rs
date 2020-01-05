@@ -15,12 +15,25 @@ const RECIPIENT_TAG: &[u8] = b"-> ";
 const MAC_TAG: &[u8] = b"---";
 
 #[derive(Debug)]
+pub(crate) enum UnknownArgument {
+    /// Base64-encoded data.
+    Encoded(Vec<u8>),
+    /// A decimal integer.
+    Numeric(u64),
+}
+
+#[derive(Debug)]
 pub(crate) enum RecipientLine {
     X25519(x25519::RecipientLine),
     Scrypt(scrypt::RecipientLine),
     #[cfg(feature = "unstable")]
     SshRsa(ssh_rsa::RecipientLine),
     SshEd25519(ssh_ed25519::RecipientLine),
+    Unknown {
+        tag: String,
+        args: Vec<UnknownArgument>,
+        body: Vec<u8>,
+    },
 }
 
 impl From<x25519::RecipientLine> for RecipientLine {
@@ -110,16 +123,64 @@ impl Header {
 mod read {
     use nom::{
         branch::alt,
-        bytes::streaming::tag,
-        character::streaming::newline,
-        combinator::map,
+        bytes::streaming::{tag, take_while1},
+        character::{
+            is_alphanumeric,
+            streaming::{digit1, newline},
+        },
+        combinator::{map, map_res},
         multi::separated_nonempty_list,
-        sequence::{pair, preceded, terminated},
+        sequence::{pair, preceded, separated_pair, terminated},
         IResult,
     };
 
     use super::*;
-    use crate::util::read::encoded_data;
+    use crate::util::read::{data_while_encoded, encoded_data, wrapped_encoded_data};
+
+    /// Parses an age recipient line tag.
+    ///
+    /// Valid tags are alphanumeric hyphen-separated words.
+    fn recipient_tag(input: &[u8]) -> IResult<&[u8], String> {
+        map_res(
+            take_while1(|chr: u8| is_alphanumeric(chr) || chr == b'-'),
+            |tag| std::str::from_utf8(tag).map(String::from),
+        )(input)
+    }
+
+    /// Parses an age recipient line argument.
+    ///
+    /// Valid arguments are:
+    /// - Base64-encoded data
+    /// - Decimal integers
+    fn unknown_argument(input: &[u8]) -> IResult<&[u8], UnknownArgument> {
+        alt((
+            map(data_while_encoded, UnknownArgument::Encoded),
+            map(digit1, |digits| {
+                UnknownArgument::Numeric(
+                    u64::from_str_radix(
+                        std::str::from_utf8(digits).expect("digit1 only returns digits"),
+                        10,
+                    )
+                    .expect("digit1 only returns digits"),
+                )
+            }),
+        ))(input)
+    }
+
+    fn unknown_recipient_line(input: &[u8]) -> IResult<&[u8], RecipientLine> {
+        map(
+            separated_pair(
+                separated_pair(
+                    recipient_tag,
+                    tag(" "),
+                    separated_nonempty_list(tag(" "), unknown_argument),
+                ),
+                newline,
+                wrapped_encoded_data,
+            ),
+            |((tag, args), body)| RecipientLine::Unknown { tag, args, body },
+        )(input)
+    }
 
     fn recipient_line(input: &[u8]) -> IResult<&[u8], RecipientLine> {
         preceded(
@@ -130,6 +191,7 @@ mod read {
                 #[cfg(feature = "unstable")]
                 map(ssh_rsa::read::recipient_line, RecipientLine::from),
                 map(ssh_ed25519::read::recipient_line, RecipientLine::from),
+                unknown_recipient_line,
             )),
         )(input)
     }
@@ -161,7 +223,28 @@ mod write {
     use std::io::Write;
 
     use super::*;
-    use crate::util::write::encoded_data;
+    use crate::util::write::{encoded_data, wrapped_encoded_data};
+
+    fn unknown_argument<'a, W: 'a + Write>(arg: &'a UnknownArgument) -> impl SerializeFn<W> + 'a {
+        move |w: WriteContext<W>| match arg {
+            UnknownArgument::Encoded(data) => encoded_data(data)(w),
+            UnknownArgument::Numeric(n) => string(format!("{}", n))(w),
+        }
+    }
+
+    fn unknown_recipient_line<'a, W: 'a + Write>(
+        tag: &'a str,
+        args: &'a [UnknownArgument],
+        body: &'a [u8],
+    ) -> impl SerializeFn<W> + 'a {
+        tuple((
+            string(tag),
+            string(" "),
+            separated_list(string(" "), args.iter().map(|arg| unknown_argument(arg))),
+            string("\n"),
+            wrapped_encoded_data(body),
+        ))
+    }
 
     fn recipient_line<'a, W: 'a + Write>(r: &'a RecipientLine) -> impl SerializeFn<W> + 'a {
         move |w: WriteContext<W>| {
@@ -172,6 +255,9 @@ mod write {
                 #[cfg(feature = "unstable")]
                 RecipientLine::SshRsa(r) => ssh_rsa::write::recipient_line(r)(out),
                 RecipientLine::SshEd25519(r) => ssh_ed25519::write::recipient_line(r)(out),
+                RecipientLine::Unknown { tag, args, body } => {
+                    unknown_recipient_line(tag, args, body)(out)
+                }
             }
         }
     }
@@ -212,26 +298,6 @@ C3ZAeY64NXS4QFrksLm3EGz+uPRyI0eQsWw7LWbbYig
 N3pgrXkbIn/RrVt0T0G3sQr1wGWuclqKxTSWHSqGdkc
 -> scrypt bBjlhJVYZeE4aqUdmtRHfw 15
 ZV/AhotwSGqaPCU43cepl4WYUouAa17a3xpu4G2yi5k
--> ssh-ed25519 BjH7FA RO+wV4kbbl4NtSmp56lQcfRdRp3dEFpdQmWkaoiw6lY
-51eEu5Oo2JYAG7OU4oamH03FDRP18/GnzeCrY7Z+sa8
---- fgMiVLJHMlg9fW7CVG/hPS5EAU4Zeg19LyCP7SoH5nA
-";
-        let h = Header::read(test_header.as_bytes()).unwrap();
-        let mut data = vec![];
-        h.write(&mut data).unwrap();
-        assert_eq!(std::str::from_utf8(&data), Ok(test_header));
-    }
-
-    #[cfg(feature = "unstable")]
-    #[test]
-    fn parse_header_with_rsa() {
-        let test_header = "age-encryption.org/v1
--> X25519 CJM36AHmTbdHSuOQL+NESqyVQE75f2e610iRdLPEN20
-C3ZAeY64NXS4QFrksLm3EGz+uPRyI0eQsWw7LWbbYig
--> X25519 ytazqsbmUnPwVWMVx0c1X9iUtGdY4yAB08UQTY2hNCI
-N3pgrXkbIn/RrVt0T0G3sQr1wGWuclqKxTSWHSqGdkc
--> scrypt bBjlhJVYZeE4aqUdmtRHfw 15
-ZV/AhotwSGqaPCU43cepl4WYUouAa17a3xpu4G2yi5k
 -> ssh-rsa mhir0Q
 xD7o4VEOu1t7KZQ1gDgq2FPzBEeSRqbnqvQEXdLRYy143BxR6oFxsUUJCRB0ErXA
 mgmZq7tIm5ZyY89OmqZztOgG2tEB1TZvX3Q8oXESBuFjBBQkKaMLkaqh5GjcGRrZ
@@ -241,6 +307,9 @@ m/uPLMQdlIkiOOdbsrE6tFesRLZNHAYspeRKI9MJ++Xg9i7rutU34ZM+1BL6KgZf
 J9FSm+GFHiVWpr1MfYCo/w
 -> ssh-ed25519 BjH7FA RO+wV4kbbl4NtSmp56lQcfRdRp3dEFpdQmWkaoiw6lY
 51eEu5Oo2JYAG7OU4oamH03FDRP18/GnzeCrY7Z+sa8
+-> some-other-recipient mhir0Q BjH7FA 37
+m/uPLMQdlIkiOOdbsrE6tFesRLZNHAYspeRKI9MJ++Xg9i7rutU34ZM+1BL6KgZf
+J9FSm+GFHiVWpr1MfYCo/w
 --- fgMiVLJHMlg9fW7CVG/hPS5EAU4Zeg19LyCP7SoH5nA
 ";
         let h = Header::read(test_header.as_bytes()).unwrap();
